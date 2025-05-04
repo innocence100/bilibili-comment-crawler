@@ -180,7 +180,10 @@ web_location = 1315875
     MD5.update(code.encode('utf-8'))
     w_rid = MD5.hexdigest()
 ```
-# 5. 完整代码
+# 5.关于爬取番剧评论
+由于某些番剧或者视频没有直接显示BV号，因此可以参考[[小技巧]如何查看番剧的av号](https://www.bilibili.com/opus/170361423985061672)，来获取你要爬取番剧的BV号
+
+# 6. 完整代码
 ```python
 import re
 import requests
@@ -211,7 +214,10 @@ def get_information(bv):
     oid = obj.search(resp.text).group('id')
     # 提取视频的标题
     obj = re.compile(r'<title data-vue-meta="true">(?P<title>.*?)</title>')
-    title = obj.search(resp.text).group('title')
+    try:
+        title = obj.search(resp.text).group('title')
+    except:
+        title = "未识别"
     return oid, title
 
 # 轮页爬取
