@@ -28,9 +28,10 @@ def get_information(bv):
 
     # 提取视频的标题
     obj = re.compile(r'<title data-vue-meta="true">(?P<title>.*?)</title>')
-    title = obj.search(resp.text).group('title')
-
-    return oid, title
+    try:
+        title = obj.search(resp.text).group('title')
+    except:
+        title = "未识别"
 
 # 轮页爬取
 def start(bv, oid, pageID, count, csv_writer, is_second):
