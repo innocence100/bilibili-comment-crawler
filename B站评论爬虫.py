@@ -186,7 +186,7 @@ def start(bv, oid, pageID, count, csv_writer, is_second):
 
 if __name__ == "__main__":
     # 获取视频bv
-    bv = "BV1GJ411x7h7"
+    bv = "BV1zWA8eSEBw"
     # 获取视频oid和标题
     oid,title = get_information(bv)
     # 评论起始页（默认为空）
