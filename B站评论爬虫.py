@@ -33,6 +33,8 @@ def get_information(bv):
     except:
         title = "未识别"
 
+    return oid,title
+
 # 轮页爬取
 def start(bv, oid, pageID, count, csv_writer, is_second):
     # 参数
