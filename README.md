@@ -367,7 +367,7 @@ def start(bv, oid, pageID, count, csv_writer, is_second):
 
 if __name__ == "__main__":
     # 获取视频bv,输入指定视频的bv，就可以爬取该视频下所有数据
-    bv = "BV1fdotYtEF6"
+    bv = "BV1zWA8eSEBw"
     # 获取视频oid和标题
     oid,title = get_information(bv)
     # 评论起始页（默认为空）
