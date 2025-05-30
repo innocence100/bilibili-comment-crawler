@@ -18,7 +18,6 @@ def get_Header():
     }
     return header
 
-
 # 通过bv号，获取视频的oid
 def get_information(bv):
     resp = requests.get(f"https://www.bilibili.com/video/{bv}/?p=14&spm_id_from=pageDriver&vd_source=cd6ee6b033cd2da64359bad72619ca8a",headers=get_Header())
@@ -35,31 +34,39 @@ def get_information(bv):
 
     return oid,title
 
-# 轮页爬取
-def start(bv, oid, pageID, count, csv_writer, is_second):
-    # 参数
-    mode = 2
-    plat = 1
-    type = 1
-    web_location = 1315875
-
-    # 获取当下时间戳
-    wts = time.time()
-
-    # 如果不是第一页
-    if pageID != '':
-        pagination_str = '{"offset":"{\\\"type\\\":3,\\\"direction\\\":1,\\\"Data\\\":{\\\"cursor\\\":%d}}"}' % pageID
-    # 如果是第一页
-    else:
-        pagination_str = '{"offset":""}'
-
-    # MD5加密
-    code = f"mode={mode}&oid={oid}&pagination_str={urllib.parse.quote(pagination_str)}&plat={plat}&seek_rpid=&type={type}&web_location={web_location}&wts={wts}" + 'ea1db124af3c7062474693fa704f4ff8'
+# MD5加密
+def md5(code):
     MD5 = hashlib.md5()
     MD5.update(code.encode('utf-8'))
     w_rid = MD5.hexdigest()
+    return w_rid
 
-    url = f"https://api.bilibili.com/x/v2/reply/wbi/main?oid={oid}&type={type}&mode={mode}&pagination_str={urllib.parse.quote(pagination_str, safe=':')}&plat=1&seek_rpid=&web_location=1315875&w_rid={w_rid}&wts={wts}"
+# 轮页爬取
+def start(bv, oid, pageID, count, csv_writer, is_second):
+    # 参数
+    mode = 2   # 为2时爬取的是最新评论，为3时爬取的是热门评论
+    plat = 1
+    type = 1  
+    web_location = 1315875
+
+    # 获取当下时间戳
+    wts = int(time.time())
+    
+    # 如果不是第一页
+    if pageID != '':
+        pagination_str = '{"offset":"%s"}' % pageID
+        code = f"mode={mode}&oid={oid}&pagination_str={urllib.parse.quote(pagination_str)}&plat={plat}&type={type}&web_location={web_location}&wts={wts}" + 'ea1db124af3c7062474693fa704f4ff8'
+        w_rid = md5(code)
+        url = f"https://api.bilibili.com/x/v2/reply/wbi/main?oid={oid}&type={type}&mode={mode}&pagination_str={urllib.parse.quote(pagination_str, safe=':')}&plat=1&web_location=1315875&w_rid={w_rid}&wts={wts}"
+    
+    # 如果是第一页
+    else:
+        pagination_str = '{"offset":""}'
+        code = f"mode={mode}&oid={oid}&pagination_str={urllib.parse.quote(pagination_str)}&plat={plat}&seek_rpid=&type={type}&web_location={web_location}&wts={wts}" + 'ea1db124af3c7062474693fa704f4ff8'
+        w_rid = md5(code)
+        url = f"https://api.bilibili.com/x/v2/reply/wbi/main?oid={oid}&type={type}&mode={mode}&pagination_str={urllib.parse.quote(pagination_str, safe=':')}&plat=1&seek_rpid=&web_location=1315875&w_rid={w_rid}&wts={wts}"
+    
+
     comment = requests.get(url=url, headers=get_Header()).content.decode('utf-8')
     comment = json.loads(comment)
 
@@ -173,7 +180,11 @@ def start(bv, oid, pageID, count, csv_writer, is_second):
 
 
     # 下一页的pageID
-    next_pageID = comment['data']['cursor']['next']
+    try:
+        next_pageID = comment['data']['cursor']['pagination_reply']['next_offset']
+    except:
+        next_pageID = 0
+
     # 判断是否是最后一页了
     if next_pageID == 0:
         print(f"评论爬取完成！总共爬取{count}条。")
@@ -185,8 +196,10 @@ def start(bv, oid, pageID, count, csv_writer, is_second):
         return bv, oid, next_pageID, count, csv_writer,is_second
 
 if __name__ == "__main__":
+
+
     # 获取视频bv
-    bv = "BV1zWA8eSEBw"
+    bv = "BV1ex7VzREZ8"
     # 获取视频oid和标题
     oid,title = get_information(bv)
     # 评论起始页（默认为空）
@@ -207,3 +220,4 @@ if __name__ == "__main__":
         # 开始爬取
         while next_pageID != 0:
             bv, oid, next_pageID, count, csv_writer,is_second=start(bv, oid, next_pageID, count, csv_writer,is_second)
+
