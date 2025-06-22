@@ -23,11 +23,11 @@ class JSON_WRITER():
         self.f.close()
 
 # 获取B站的Header
-def get_Header():
+def get_Header(with_cookies=True):
     with open('bili_cookie.txt','r',encoding="utf8") as f:
             cookie=f.read()
     header={
-            "Cookie":cookie,
+            "Cookie":cookie if with_cookies else '',
             "User-Agent":'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36 Edg/134.0.0.0'
     }
     return header
@@ -65,7 +65,7 @@ def download_imgs(reply,dir_name='.'):
             filename = url.split("/")[-1]
             print(f"下载 {reply['rpid']} 的图片 {filename}")
             try:
-                response = requests.get(url,headers=get_Header())
+                response = requests.get(url,headers=get_Header(with_cookies=False))
                 assert response
                 open(os.path.join(dir_name,filename),"wb").write(response.content)
             except:
