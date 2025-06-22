@@ -1,16 +1,30 @@
 import re
 import requests
 import json
-from urllib.parse import quote
-import pandas as pd
+
 import hashlib
 import urllib
 import time
-import csv
+import random
+import gzip
+import os
+
+
+class JSON_WRITER():
+    def __init__(self,f):
+        self.f = open(f,'w',encoding='utf-8')
+    def writerow(self,data):
+        assert isinstance(data,(dict,list))
+        json.dump(data,self.f,ensure_ascii=False)
+        self.f.write("\n")
+    def __enter__(self):
+        return self
+    def __exit__(self,*args,**kwargs):
+        self.f.close()
 
 # 获取B站的Header
 def get_Header():
-    with open('bili_cookie.txt','r') as f:
+    with open('bili_cookie.txt','r',encoding="utf8") as f:
             cookie=f.read()
     header={
             "Cookie":cookie,
@@ -20,6 +34,7 @@ def get_Header():
 
 # 通过bv号，获取视频的oid
 def get_information(bv):
+    print(f"https://www.bilibili.com/video/{bv}/?p=14&spm_id_from=pageDriver&vd_source=cd6ee6b033cd2da64359bad72619ca8a")
     resp = requests.get(f"https://www.bilibili.com/video/{bv}/?p=14&spm_id_from=pageDriver&vd_source=cd6ee6b033cd2da64359bad72619ca8a",headers=get_Header())
     # 提取视频oid
     obj = re.compile(f'"aid":(?P<id>.*?),"bvid":"{bv}"')
@@ -40,6 +55,23 @@ def md5(code):
     MD5.update(code.encode('utf-8'))
     w_rid = MD5.hexdigest()
     return w_rid
+
+# 下载图片
+def download_imgs(reply,dir_name='.'):
+    pics = reply.get("content", {}).get("pictures", [])
+    if pics:
+        for pic in pics:
+            url = pic["img_src"]
+            filename = url.split("/")[-1]
+            print(f"下载 {reply['rpid']} 的图片 {filename}")
+            try:
+                response = requests.get(url,headers=get_Header())
+                assert response
+                open(os.path.join(dir_name,filename),"wb").write(response.content)
+            except:
+                print(f"{url} error")
+                open(os.path.join(dir_name,filename+".failed"),"w").write(url)
+    time.sleep(0.5)
 
 # 轮页爬取
 def start(bv, oid, pageID, count, csv_writer, is_second):
@@ -73,55 +105,22 @@ def start(bv, oid, pageID, count, csv_writer, is_second):
     for reply in comment['data']['replies']:
         # 评论数量+1
         count += 1
-
+        
+        # 评论ID
+        rpid = reply["rpid"]
+        
         if count % 1000 ==0:
             time.sleep(20)
 
-        # 上级评论ID
-        parent=reply["parent"]
-        # 评论ID
-        rpid = reply["rpid"]
-        # 用户ID
-        uid = reply["mid"]
-        # 用户名
-        name = reply["member"]["uname"]
-        # 用户等级
-        level = reply["member"]["level_info"]["current_level"]
-        # 性别
-        sex = reply["member"]["sex"]
-        # 头像
-        avatar = reply["member"]["avatar"]
-        # 是否是大会员
-        if reply["member"]["vip"]["vipStatus"] == 0:
-            vip = "否"
-        else:
-            vip = "是"
-        # IP属地
-        try:
-            IP = reply["reply_control"]['location'][5:]
-        except:
-            IP = "未知"
-        # 内容
-        context = reply["content"]["message"]
-        # 评论时间
-        reply_time = pd.to_datetime(reply["ctime"], unit='s')
         # 相关回复数
         try:
             rereply = reply["reply_control"]["sub_reply_entry_text"]
             rereply = int(re.findall(r'\d+', rereply)[0])
         except:
             rereply = 0
-        # 点赞数
-        like = reply['like']
 
-        # 个性签名
-        try:
-            sign = reply['member']['sign']
-        except:
-            sign = ''
-
-        # 写入CSV文件
-        csv_writer.writerow([count, parent, rpid, uid, name, level, sex, context, reply_time, rereply, like, sign, IP, vip, avatar])
+        # 写入JSON文件
+        json_writer.writerow(reply)
 
         # 二级评论(如果开启了二级评论爬取，且该评论回复数不为0，则爬取该评论的二级评论)
         if is_second and rereply !=0:
@@ -132,50 +131,15 @@ def start(bv, oid, pageID, count, csv_writer, is_second):
                 for second in second_comment['data']['replies']:
                     # 评论数量+1
                     count += 1
-                    # 上级评论ID
-                    parent=second["parent"]
-                    # 评论ID
-                    second_rpid = second["rpid"]
-                    # 用户ID
-                    uid = second["mid"]
-                    # 用户名
-                    name = second["member"]["uname"]
-                    # 用户等级
-                    level = second["member"]["level_info"]["current_level"]
-                    # 性别
-                    sex = second["member"]["sex"]
-                    # 头像
-                    avatar = second["member"]["avatar"]
-                    # 是否是大会员
-                    if second["member"]["vip"]["vipStatus"] == 0:
-                        vip = "否"
-                    else:
-                        vip = "是"
-                    # IP属地
-                    try:
-                        IP = second["reply_control"]['location'][5:]
-                    except:
-                        IP = "未知"
-                    # 内容
-                    context = second["content"]["message"]
-                    # 评论时间
-                    reply_time = pd.to_datetime(second["ctime"], unit='s')
                     # 相关回复数
                     try:
                         rereply = second["reply_control"]["sub_reply_entry_text"]
                         rereply = re.findall(r'\d+', rereply)[0]
                     except:
                         rereply = 0
-                    # 点赞数
-                    like = second['like']
-                    # 个性签名
-                    try:
-                        sign = second['member']['sign']
-                    except:
-                        sign = ''
 
-                    # 写入CSV文件
-                    csv_writer.writerow([count, parent, second_rpid, uid, name, level, sex, context, reply_time, rereply, like, sign, IP, vip, avatar])
+                    # 写入JSON文件
+                    json_writer.writerow(second)
             
 
 
@@ -191,15 +155,20 @@ def start(bv, oid, pageID, count, csv_writer, is_second):
         return bv, oid, next_pageID, count, csv_writer,is_second
     # 如果不是最后一页，则停0.5s（避免反爬机制）
     else:
-        time.sleep(0.5)
+        time.sleep(random.randint(500,1000)/1000)
         print(f"当前爬取{count}条。")
         return bv, oid, next_pageID, count, csv_writer,is_second
 
 if __name__ == "__main__":
 
+    import sys
+
+    url = sys.argv[1]
 
     # 获取视频bv
-    bv = "BV1ex7VzREZ8"
+    bv = re.search("/BV[^/?]*",url).group()[1:]
+    print(bv)
+
     # 获取视频oid和标题
     oid,title = get_information(bv)
     # 评论起始页（默认为空）
@@ -211,13 +180,19 @@ if __name__ == "__main__":
     # 是否开启二级评论爬取，默认开启
     is_second = True
 
+    # 创建文件夹
+    dir_name = f'{bv}_{int(time.time())}'
+    assert not os.path.exists(dir_name)
+    os.mkdir(dir_name)
 
     # 创建CSV文件并写入表头
-    with open(f'{title[:12]}_评论.csv', mode='w', newline='', encoding='utf-8-sig') as file:
-        csv_writer = csv.writer(file)
-        csv_writer.writerow(['序号', '上级评论ID','评论ID', '用户ID', '用户名', '用户等级', '性别', '评论内容', '评论时间', '回复数', '点赞数', '个性签名', 'IP属地', '是否是大会员', '头像'])
+    with JSON_WRITER(f'{dir_name}/{bv}_评论.jsonl') as json_writer:
 
         # 开始爬取
         while next_pageID != 0:
-            bv, oid, next_pageID, count, csv_writer,is_second=start(bv, oid, next_pageID, count, csv_writer,is_second)
+            bv, oid, next_pageID, count, csv_writer,is_second=start(bv, oid, next_pageID, count, json_writer,is_second)
 
+    with open(f'{dir_name}/{bv}_评论.jsonl',encoding="utf8") as f:
+        for line in f:
+            j = json.loads(line)
+            download_imgs(j,dir_name=dir_name)
